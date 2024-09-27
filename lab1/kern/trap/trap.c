@@ -159,8 +159,7 @@ void exception_handler(struct trapframe *tf) {
             */
 			cprintf("Exception type:Illegal instruction \n");
 			cprintf("Illegal instruction exception at 0x%016llx\n\n", tf->epc);
-			//%016llx中的%表示格式化指示符的开始，0表示空位补零，16表示总宽度为 16 个字符，llx表示以长长整型十六进制数形式输出。
-			tf->epc += 4;//指令长度都为4个字节
+			tf->epc += 4;
             break;
         case CAUSE_BREAKPOINT:
             //断点异常处理
@@ -171,7 +170,7 @@ void exception_handler(struct trapframe *tf) {
             */
 			cprintf("Exception type: breakpoint \n");
 			cprintf("ebreak caught at 0x%016llx\n\n", tf->epc);
-			tf->epc += 2;//ebreak指令长度为2个字节，为了4字节对齐
+			tf->epc += 2;
             break;
         case CAUSE_MISALIGNED_LOAD:
             break;
