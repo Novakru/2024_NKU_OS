@@ -1,0 +1,25 @@
+# 忽略 lab0 到 lab8 文件夹中的 .qemu.out 文件
+lab[0-8]/.qemu.out
+
+# 忽略 lab0 到 lab8 文件夹中的 .vscode/settings.json 文件
+lab[0-8]/.vscode/settings.json
+
+# 忽略 lab0 到 lab8 文件夹中的 bin/ 目录
+lab[0-8]/bin/
+
+# 忽略 lab0 到 lab8 文件夹中的 obj/ 目录
+lab[0-8]/obj/
+
+# 忽略根目录中的 bin/ 目录
+/bin/
+
+# 忽略根目录中的 obj/ 目录
+/obj/
+
+# 忽略其他常见的编译生成文件
+*.o
+*.d
+*.out
+*.img
+*.sym
+*.asm
