@@ -658,8 +658,7 @@ void exception_handler(struct trapframe *tf) {
     802004a2:	00001517          	auipc	a0,0x1
     802004a6:	b2650513          	addi	a0,a0,-1242 # 80200fc8 <etext+0x59c>
     802004aa:	bc7ff0ef          	jal	ra,80200070 <cprintf>
-			//%016llx中的%表示格式化指示符的开始，0表示空位补零，16表示总宽度为 16 个字符，llx表示以长长整型十六进制数形式输出。
-			tf->epc += 4;//指令长度都为4个字节
+			tf->epc += 4;
     802004ae:	10843783          	ld	a5,264(s0)
     802004b2:	0791                	addi	a5,a5,4
     802004b4:	10f43423          	sd	a5,264(s0)
@@ -692,11 +691,11 @@ void exception_handler(struct trapframe *tf) {
     802004e0:	00001517          	auipc	a0,0x1
     802004e4:	b3850513          	addi	a0,a0,-1224 # 80201018 <etext+0x5ec>
     802004e8:	b89ff0ef          	jal	ra,80200070 <cprintf>
-			tf->epc += 2;//ebreak指令长度为2个字节，为了4字节对齐
+			tf->epc += 2;
     802004ec:	10843783          	ld	a5,264(s0)
 }
     802004f0:	60a2                	ld	ra,8(sp)
-			tf->epc += 2;//ebreak指令长度为2个字节，为了4字节对齐
+			tf->epc += 2;
     802004f2:	0789                	addi	a5,a5,2
     802004f4:	10f43423          	sd	a5,264(s0)
 }
