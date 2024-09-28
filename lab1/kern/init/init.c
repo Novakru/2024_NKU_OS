@@ -12,6 +12,8 @@
 
 int kern_init(void) __attribute__((noreturn));
 void grade_backtrace(void);
+void trigger_illegal_instruction();
+void trigger_ebreak();
 
 int kern_init(void) {
     extern char edata[], end[];
@@ -28,10 +30,16 @@ int kern_init(void) {
 
     idt_init();  // init interrupt descriptor table
 
+    intr_enable();  // enable irq interrupt
+        
+        trigger_ebreak();
+        
+        trigger_illegal_instruction();
+
     // rdtime in mbare mode crashes
     clock_init();  // init clock interrupt
 
-    intr_enable();  // enable irq interrupt
+    
     
     while (1)
         ;
@@ -57,5 +65,14 @@ static void lab1_print_cur_status(void) {
     round++;
 }
 
-
+void trigger_ebreak(){
+    __asm__ __volatile__(
+        "ebreak"
+    );
+}
+void trigger_illegal_instruction(){
+    __asm__ __volatile__(
+        "mret"
+    );
+}
 
