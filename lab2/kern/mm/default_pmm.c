@@ -53,7 +53,7 @@
  *               (5.2) reset the fields of pages, such as p->ref, p->flags (PageProperty)
  *               (5.3) try to merge low addr or high addr blocks. Notice: should change some pages's p->property correctly.
  */
-free_area_t free_area;
+static free_area_t free_area;
 
 #define free_list (free_area.free_list)
 #define nr_free (free_area.nr_free)
@@ -66,6 +66,7 @@ default_init(void) {
 
 static void
 default_init_memmap(struct Page *base, size_t n) {
+	// The property of the first page is set to the size of the entire free block, while the property of all other pages is set to 0.
     assert(n > 0);
     struct Page *p = base;
     for (; p != base + n; p ++) {
@@ -76,6 +77,13 @@ default_init_memmap(struct Page *base, size_t n) {
     base->property = n;
     SetPageProperty(base);
     nr_free += n;
+	//
+	/* If the free list is empty, directly add the new memory block to the list.
+	*  If the free list is not empty, traverse the list and find the appropriate position
+	*  to insert the new memory block in order to maintain the blocks in ascending order by address.
+	*  If the address of the new block is larger than all the existing blocks in the list, 
+	*  insert it at the end of the list. Only add the first page!                                                     
+	*/
     if (list_empty(&free_list)) {
         list_add(&free_list, &(base->page_link));
     } else {
@@ -100,6 +108,7 @@ default_alloc_pages(size_t n) {
     }
     struct Page *page = NULL;
     list_entry_t *le = &free_list;
+	// find the free block that size bigger than alloc_size(n)
     while ((le = list_next(le)) != &free_list) {
         struct Page *p = le2page(le, page_link);
         if (p->property >= n) {
@@ -107,13 +116,18 @@ default_alloc_pages(size_t n) {
             break;
         }
     }
+	// if find, the block selected to alloc should do some change (p is new, page is alloced)
     if (page != NULL) {
         list_entry_t* prev = list_prev(&(page->page_link));
         list_del(&(page->page_link));
         if (page->property > n) {
+			// (1) pass the page that alloc to get new first page addr (block head page)
             struct Page *p = page + n;
+			// (2) blocksize -= n
             p->property = page->property - n;
+			// (3) set as new first page
             SetPageProperty(p);
+			// (4) add new first page into the list
             list_add(prev, &(p->page_link));
         }
         nr_free -= n;
@@ -126,15 +140,17 @@ static void
 default_free_pages(struct Page *base, size_t n) {
     assert(n > 0);
     struct Page *p = base;
+	// (1) check the block is used with n size or bigger than n
     for (; p != base + n; p ++) {
         assert(!PageReserved(p) && !PageProperty(p));
-        p->flags = 0;
+        p->flags = 0; // redundent ? 
         set_page_ref(p, 0);
     }
     base->property = n;
     SetPageProperty(base);
     nr_free += n;
 
+	// (2) add the pages that just be free into free_list
     if (list_empty(&free_list)) {
         list_add(&free_list, &(base->page_link));
     } else {
@@ -150,6 +166,8 @@ default_free_pages(struct Page *base, size_t n) {
         }
     }
 
+	// (3.1) Check if the previous block is adjacent to the current block, and if so, merge them.
+	// (3.2) Check if the next block is adjacent to the current block, and if so, merge them.
     list_entry_t* le = list_prev(&(base->page_link));
     if (le != &free_list) {
         p = le2page(le, page_link);
@@ -292,7 +310,7 @@ default_check(void) {
     assert(count == 0);
     assert(total == 0);
 }
-//这个结构体在
+
 const struct pmm_manager default_pmm_manager = {
     .name = "default_pmm_manager",
     .init = default_init,
