@@ -2,6 +2,7 @@
 #include <list.h>
 #include <string.h>
 #include <default_pmm.h>
+#include <stdio.h>
 
 /* In the first fit algorithm, the allocator keeps a list of free blocks (known as the free list) and,
    on receiving a request for memory, scans along the list for the first block that is large enough to
@@ -84,6 +85,7 @@ default_init_memmap(struct Page *base, size_t n) {
 	*  If the address of the new block is larger than all the existing blocks in the list, 
 	*  insert it at the end of the list. Only add the first page!                                                     
 	*/
+	// 其实没必要。可以直接插入，因为初始化的时候内存为空
     if (list_empty(&free_list)) {
         list_add(&free_list, &(base->page_link));
     } else {
@@ -209,6 +211,15 @@ basic_check(void) {
     assert(page2pa(p0) < npage * PGSIZE);
     assert(page2pa(p1) < npage * PGSIZE);
     assert(page2pa(p2) < npage * PGSIZE);
+
+    uintptr_t addr_p0 = page2pa(p0);
+    uintptr_t addr_p1 = page2pa(p1);
+    uintptr_t addr_p2 = page2pa(p2);
+
+    cprintf("Allocated Page Addresses:\n");
+    cprintf("p0: %p\n", addr_p0);
+    cprintf("p1: %p\n", addr_p1);
+    cprintf("p2: %p\n", addr_p2);
 
     list_entry_t free_list_store = free_list;
     list_init(&free_list);
