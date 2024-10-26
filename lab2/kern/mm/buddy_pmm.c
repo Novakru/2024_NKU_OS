@@ -59,7 +59,7 @@ show_buddy_info(void) {
 static void 
 show_order_info(size_t order) {
 	list_entry_t* le = &free_list(order);
-	cprintf("after merge(order = %d): [curr_page, page_size]: ", order);
+	cprintf("after merge(order = %d): ", order);
 	while ((le = list_next(le)) != &free_list(order)) {
 		struct Page* curr_page = le2page(le, page_link);
 		cprintf("[%p, %d]; ", page2pa(curr_page), curr_page->property);
