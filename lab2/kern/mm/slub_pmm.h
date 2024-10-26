@@ -14,6 +14,13 @@
 #define ClearPageSlab(page)     ((page)->flags &= ~(1 << PG_slab))
 #define PageSlab(page)          ((page)->flags & (1 << PG_slab))
 
+#define PG_bigobj       3   // 表示该页被用于分配大对象
+
+#define SetPageBigObj(page)       ((page)->flags |= (1 << PG_bigobj))
+#define ClearPageBigObj(page)     ((page)->flags &= ~(1 << PG_bigobj))
+#define PageBigObj(page)          ((page)->flags & (1 << PG_bigobj))
+
+
 // 将页面转换为内核虚拟地址的函数
 static inline void *page2kva(struct Page *page) {
     return (void *)(page2pa(page) + PHYSICAL_MEMORY_OFFSET);

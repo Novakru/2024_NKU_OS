@@ -154,12 +154,20 @@ void *kmalloc(size_t size) {
             break;
         }
     }
+    // if (cache == NULL) {
+    //     // 对象大小过大，直接分配页面
+    //     struct Page *page = slub_alloc_pages(1);
+    //     if (page == NULL) return NULL;
+    //     return page2kva(page);
+    // }
     if (cache == NULL) {
-        // 对象大小过大，直接分配页面
-        struct Page *page = slub_alloc_pages(1);
-        if (page == NULL) return NULL;
-        return page2kva(page);
-    }
+    // 对象大小过大，直接分配页面
+    struct Page *page = slub_alloc_pages(1);
+    if (page == NULL) return NULL;
+    SetPageBigObj(page);  // 设置页面为大对象标志
+    return page2kva(page);
+}
+
 
     // 在 kmem_cache 中查找有可用空间的 slab
     struct slab *slab = NULL;
@@ -212,6 +220,16 @@ static inline struct Page *kva2page(void *kva) {
 
 void kfree(void *obj) {
     assert(obj != NULL);  // 确保传入的对象不为空
+   
+
+    // 首先，检查对象是否属于直接分配的大对象
+    struct Page *page = kva2page((void *)((uintptr_t)obj & ~(PGSIZE - 1)));
+    if (PageBigObj(page)) {
+        // 对象是直接分配的页面，需要释放页面
+        ClearPageBigObj(page);
+        slub_free_pages(page, 1);
+        return;
+    }
 
     struct slab *slab = NULL;
     struct kmem_cache *cache = NULL;
@@ -273,10 +291,14 @@ static void slub_check(void) {
     void *obj2 = kmalloc(64);
     assert(obj2 != NULL);
 
+    void *obj3 = kmalloc(100000);
+    assert(obj3 != NULL);
   
 
     kfree(obj1);
     kfree(obj2);
+    kfree(obj3);
+    
     
 
     cprintf("SLUB allocator check passed!\n");
