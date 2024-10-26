@@ -34,6 +34,7 @@ struct slab {
     void *s_mem;                 // 第一个对象的起始地址
     unsigned int inuse;          // 已分配的对象数
     unsigned int free;           // 下一个可用对象的索引
+    void *free_list;             // 空闲对象链表
 };
 
 #define le2slab(le, member) \

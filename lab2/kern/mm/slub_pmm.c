@@ -101,6 +101,50 @@ static size_t slub_nr_free_pages(void) {
 }
 
 
+// void *kmalloc(size_t size) {
+//     int i;
+//     struct kmem_cache *cache = NULL;
+//     for (i = 0; i < kmem_cache_count; i++) {
+//         if (kmem_caches[i].object_size >= size) {
+//             cache = &kmem_caches[i];
+//             break;
+//         }
+//     }
+//     if (cache == NULL) {
+//         // 对象大小过大，直接分配页面
+//         struct Page *page = slub_alloc_pages(1);
+//         if (page == NULL) return NULL;
+//         return page2kva(page);
+//     }
+
+//     // 在 kmem_cache 中查找有可用空间的 slab
+//     struct slab *slab = NULL;
+//     list_entry_t *le = &cache->slab_list;
+//     while ((le = list_next(le)) != &cache->slab_list) {
+//         slab = le2slab(le, slab_list);
+//         if (slab->inuse < (PGSIZE - sizeof(struct slab)) / cache->size) {
+//             break;
+//         }
+//     }
+
+//     if (le == &cache->slab_list) {
+//         // 没有可用的 slab，创建新的
+//         struct Page *page = slub_alloc_pages(1);
+//         if (page == NULL) return NULL;
+//         slab = (struct slab *)page2kva(page);
+//         memset(slab, 0, sizeof(struct slab));
+//         slab->s_mem = (void *)((char *)slab + sizeof(struct slab));
+//         slab->inuse = 0;
+//         slab->free = 0;
+//         list_add(&cache->slab_list, &(slab->slab_list));
+//     }
+
+//     // 分配对象
+//     void *obj = (void *)((char *)slab->s_mem + slab->free * cache->size);
+//     slab->inuse++;
+//     slab->free++;
+//     return obj;
+// }
 void *kmalloc(size_t size) {
     int i;
     struct kmem_cache *cache = NULL;
@@ -120,9 +164,13 @@ void *kmalloc(size_t size) {
     // 在 kmem_cache 中查找有可用空间的 slab
     struct slab *slab = NULL;
     list_entry_t *le = &cache->slab_list;
+
+find_slab:
     while ((le = list_next(le)) != &cache->slab_list) {
         slab = le2slab(le, slab_list);
-        if (slab->inuse < (PGSIZE - sizeof(struct slab)) / cache->size) {
+        // 如果 slab 有空闲对象，或者还未分配满
+        if (slab->free_list != NULL || 
+            slab->inuse < ((PGSIZE - ((char *)slab->s_mem - (char *)slab)) / cache->size)) {
             break;
         }
     }
@@ -133,64 +181,86 @@ void *kmalloc(size_t size) {
         if (page == NULL) return NULL;
         slab = (struct slab *)page2kva(page);
         memset(slab, 0, sizeof(struct slab));
-        slab->s_mem = (void *)((char *)slab + sizeof(struct slab));
+        slab->s_mem = (void *)(((uintptr_t)(slab + 1) + cache->align - 1) & ~(cache->align -1));
         slab->inuse = 0;
-        slab->free = 0;
+        slab->free_list = NULL;
         list_add(&cache->slab_list, &(slab->slab_list));
     }
 
-    // 分配对象
-    void *obj = (void *)((char *)slab->s_mem + slab->free * cache->size);
+    void *obj = NULL;
+    if (slab->free_list != NULL) {
+        // 从空闲链表中取出一个对象
+        obj = slab->free_list;
+        slab->free_list = *(void **)obj;
+    } else {
+        // 检查是否超过容量
+        size_t max_objects = ((PGSIZE - ((char *)slab->s_mem - (char *)slab)) / cache->size);
+        if (slab->inuse >= max_objects) {
+            // 当前 slab 已满，需要寻找下一个 slab
+            goto find_slab;
+        }
+        // 从未使用的区域分配
+        obj = (void *)((char *)slab->s_mem + slab->inuse * cache->size);
+    }
     slab->inuse++;
-    slab->free++;
     return obj;
 }
+
 static inline struct Page *kva2page(void *kva) {
-    return pa2page((uintptr_t)kva - 0xFFFFFFFFC0200000);  // 将虚拟地址转换为物理地址并映射到页面
+    return pa2page((uintptr_t)kva - PHYSICAL_MEMORY_OFFSET);  // 将虚拟地址转换为物理地址并映射到页面
 }
 
 void kfree(void *obj) {
-//     assert(obj != NULL);  // 确保传入的对象不为空
+    assert(obj != NULL);  // 确保传入的对象不为空
 
-//     struct slab *slab = NULL;
-//     struct kmem_cache *cache = NULL;
+    struct slab *slab = NULL;
+    struct kmem_cache *cache = NULL;
+    int found = 0;
 
-//     // 遍历所有缓存池，找到包含该对象的 slab
-//     for (int i = 0; i < kmem_cache_count; i++) {
-//         cache = &kmem_caches[i];
-//         list_entry_t *le = &cache->slab_list;
+    // 遍历所有缓存池，找到包含该对象的 slab
+    for (int i = 0; i < kmem_cache_count; i++) {
+        cache = &kmem_caches[i];
+        list_entry_t *le = &cache->slab_list;
 
-//         // 遍历当前缓存池中的所有 slab
-//         while ((le = list_next(le)) != &cache->slab_list) {
-//             slab = le2slab(le, slab_list);
+        // 遍历当前缓存池中的所有 slab
+        while ((le = list_next(le)) != &cache->slab_list) {
+            slab = le2slab(le, slab_list);
 
-//             // 检查对象是否在这个 slab 中
-//             if ((char *)obj >= (char *)slab->s_mem &&
-//                 (char *)obj < (char *)slab->s_mem + (PGSIZE - sizeof(struct slab))) {
-//                 goto found;  // 找到所属的 slab，跳出循环
-//             }
-//         }
-//     }
+            // 检查对象是否在这个 slab 中
+            size_t slab_size = PGSIZE;
+            if ((char *)obj >= (char *)slab->s_mem &&
+                (char *)obj < (char *)slab + slab_size) {
+                found = 1;
+                break;  // 找到所属的 slab，跳出循环
+            }
+        }
+        if (found) break;
+    }
 
-//     // 如果没有找到所属的 slab，则报错
-//     panic("kfree: invalid object pointer!\n");
+    // 如果没有找到所属的 slab，则报错
+    if (!found) {
+        panic("kfree: invalid object pointer!\n");
+    }
 
-// found: {
-//     // 计算对象在 slab 中的偏移量
-//     size_t index = ((char *)obj - (char *)slab->s_mem) / cache->size;
+    // 将对象加入到 slab 的 free_list 中
+    *(void **)obj = slab->free_list;
+    slab->free_list = obj;
 
-//     // 在完整实现中，这里需要标记对象为已释放（例如使用位图或链表）
-//     slab->inuse--;  // 减少已使用的对象计数
+    // 减少已使用对象计数
+    slab->inuse--;
 
-//     // 如果 slab 中没有对象在使用，考虑释放该 slab
-//     if (slab->inuse == 0) {
-//         // 从缓存池链表中移除 slab
-//         list_del(&(slab->slab_list));
-//         struct Page *page = kva2page(slab);  // 将虚拟地址转换为页面
-//         slub_free_pages(page, 1);  // 释放页面
-//     }
-// }
+    // 如果 slab 中没有对象在使用，释放该 slab 的页面
+    if (slab->inuse == 0) {
+        // 从缓存池链表中移除 slab
+        list_del(&(slab->slab_list));
+
+        // 将虚拟地址转换为页面结构，并释放该页面
+        struct Page *page = kva2page(slab);
+        slub_free_pages(page, 1);  // 释放页面
+    }
 }
+
+
 
 
 
@@ -199,11 +269,15 @@ static void slub_check(void) {
 
     void *obj1 = kmalloc(32);
     assert(obj1 != NULL);
+    
     void *obj2 = kmalloc(64);
     assert(obj2 != NULL);
 
+  
+
     kfree(obj1);
     kfree(obj2);
+    
 
     cprintf("SLUB allocator check passed!\n");
 }
