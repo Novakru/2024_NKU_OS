@@ -10,4 +10,4 @@ https://nankai.feishu.cn/wiki/N3y4wfLGCiQnDwkpWRocSKlPnQl?from=from_copylink
 | Lab         | 基础实现       | Challenge实现          | 代码位置                           | 额外信息                       |
 |-------------|----------------|-------------------------|------------------------------------|--------------------------------|
 | Lab0 + Lab1 | 全员完成       | 全员完成               |  jjh.wzm.szm三个分支                               | -                              |
-| Lab2        | 全员完成       | Buddy的邻接链表实现 + slub探索  | buddy在jjh分支，best-fit、first-fit在jjh.wzm.szm三个分支    | SLUB实现中断，探索及学习过程（实现思路报告已完成） |
+| Lab2        | 全员完成       | Buddy的邻接链表实现 + slub探索  | buddy在jjh分支，best-fit、first-fit在jjh.wzm.szm三个分支    | SLUB实现中道崩殂，有探索及学习过程（实现思路报告已完成） |
