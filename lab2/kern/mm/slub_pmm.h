@@ -5,6 +5,7 @@
 #include <list.h>
 #include <defs.h>        // 包含 size_t 等类型定义
 #include <memlayout.h>   // 包含页面大小和相关宏
+//#include <buddy_pmm.h>  // 包含 Buddy 系统头文件
 
 // 定义 SLUB 专用的页面标志位
 #define PG_slab         2   // 表示该页被 SLUB 使用
@@ -15,6 +16,7 @@
 #define PageSlab(page)          ((page)->flags & (1 << PG_slab))
 
 #define PG_bigobj       3   // 表示该页被用于分配大对象
+
 
 #define SetPageBigObj(page)       ((page)->flags |= (1 << PG_bigobj))
 #define ClearPageBigObj(page)     ((page)->flags &= ~(1 << PG_bigobj))
