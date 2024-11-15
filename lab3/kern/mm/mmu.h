@@ -50,7 +50,7 @@
 // construct linear address from indexes and offset
 #define PGADDR(d1, d0, t, o) ((uintptr_t)((d1) << PDX1SHIFT | (d0) << PDX0SHIFT | (t) << PTXSHIFT | (o)))
 
-// address in page table or page directory entry
+// address in page table entry (PTE) or page directory entry (PDE)
 #define PTE_ADDR(pte)   (((uintptr_t)(pte) & ~0x3FF) << (PTXSHIFT - PTE_PPN_SHIFT))
 #define PDE_ADDR(pde)   PTE_ADDR(pde)
 

@@ -340,21 +340,38 @@ void page_remove(pde_t *pgdir, uintptr_t la) {
 // return value: always 0
 // note: PT is changed, so the TLB need to be invalidate
 int page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm) {
+
+    // 如果该页表项不存在，则分配新的页表用于存储该页表项 (create = 1)
+	// 只是创建了la的页表项！还没有映射！
     pte_t *ptep = get_pte(pgdir, la, 1);
+    // 如果无法分配页表项（内存不足），返回 -E_NO_MEM 错误
     if (ptep == NULL) {
         return -E_NO_MEM;
     }
+    
     page_ref_inc(page);
+    
+    // 如果 ptep 指向的页表项已经有效，说明该虚拟地址已经被映射
     if (*ptep & PTE_V) {
+        // 获取当前页表项映射的物理页面，并转换成 Page 结构指针 p
         struct Page *p = pte2page(*ptep);
+        // 如果该页表项映射的页面正好是 page，则无需重新映射
+        // 因为前面增加了引用计数，这里将其减少，以保持引用计数正确
         if (p == page) {
             page_ref_dec(page);
         } else {
+            // 如果页表项映射的是不同的页面，调用 page_remove_pte 移除旧的映射
+            // 这会减少旧页面的引用计数，保证引用计数一致性
             page_remove_pte(pgdir, la, ptep);
         }
     }
+    
+    // 利用物理地址创建页表项，填入！真正的映射！
     *ptep = pte_create(page2ppn(page), PTE_V | perm);
+    
+    // 刷新 TLB，确保虚拟地址 la 的缓存无效，使用新的映射
     tlb_invalidate(pgdir, la);
+    
     return 0;
 }
 
@@ -397,56 +414,91 @@ static void check_pgdir(void) {
     // so npage is always larger than KMEMSIZE / PGSIZE
     size_t nr_free_store;
 
-    nr_free_store=nr_free_pages();
+    // 记录当前系统中空闲页的数量
+    nr_free_store = nr_free_pages();
 
+    // 确认系统页数不超过内核的物理内存范围
     assert(npage <= KERNTOP / PGSIZE);
+    // 确认页表 boot_pgdir 已初始化，并且其地址对齐在页边界
     assert(boot_pgdir != NULL && (uint32_t)PGOFF(boot_pgdir) == 0);
+    // 验证虚拟地址 0x0 没有映射到任何物理页面（即 get_page() 返回 NULL）
     assert(get_page(boot_pgdir, 0x0, NULL) == NULL);
 
     struct Page *p1, *p2;
     p1 = alloc_page();
+    // 使用 page_insert() 将物理页面 p1 映射到虚拟地址 0x0
     assert(page_insert(boot_pgdir, p1, 0x0, 0) == 0);
     pte_t *ptep;
+    // 验证在虚拟地址 0x0 处能获取到页表项
     assert((ptep = get_pte(boot_pgdir, 0x0, 0)) != NULL);
+    // 确认该页表项指向的物理页面是 p1
     assert(pte2page(*ptep) == p1);
+    // 验证 p1 的引用计数为 1
     assert(page_ref(p1) == 1);
 
-    ptep = (pte_t *)KADDR(PDE_ADDR(boot_pgdir[0]));
-    ptep = (pte_t *)KADDR(PDE_ADDR(ptep[0])) + 1;
+    // 从页表项读取物理地址 PDE_ADDR(boot_pgdir[0]), 然后转换为内核虚拟地址 KADDR()
+    // boot_pgdir[0] 指向二级页表，ptep 最终指向找到的二级页表的基地址
+    ptep = (pte_t *)KADDR(PDE_ADDR(boot_pgdir[0]));  
+    // 此时，ptep 指向二级页表的基地址，再次读取 ptep[0] 得到三级页表的物理地址，转换为内核虚拟地址
+    // 最终 ptep + 1 指向三级页表的第二个页表项，这个页表项指向了一个物理页面的地址
+    ptep = (pte_t *)KADDR(PDE_ADDR(ptep[0])) + 1;    
+    // 验证 get_pte() 获取的 PGSIZE 对应的页表项与预期结果一致
     assert(get_pte(boot_pgdir, PGSIZE, 0) == ptep);
 
+    // 分配一个新的物理页面 p2
     p2 = alloc_page();
+    // 将物理页面 p2 映射到虚拟地址 PGSIZE，并设置用户访问和写权限
     assert(page_insert(boot_pgdir, p2, PGSIZE, PTE_U | PTE_W) == 0);
+    // 验证 p2 的页表项在虚拟地址 PGSIZE 处存在
     assert((ptep = get_pte(boot_pgdir, PGSIZE, 0)) != NULL);
+    // 验证页表项包含用户访问权限 (PTE_U)
     assert(*ptep & PTE_U);
+    // 验证页表项包含写权限 (PTE_W)
     assert(*ptep & PTE_W);
+    // 确认页目录项也包含用户权限 (PTE_U)
     assert(boot_pgdir[0] & PTE_U);
+    // 验证 p2 的引用计数为 1
     assert(page_ref(p2) == 1);
 
+    // 重新将 p1 映射到 PGSIZE，覆盖原来的 p2 映射
     assert(page_insert(boot_pgdir, p1, PGSIZE, 0) == 0);
+    // 验证 p1 的引用计数为 2，表示被两个虚拟地址 (0x0 和 PGSIZE) 映射
     assert(page_ref(p1) == 2);
+    // 验证 p2 的引用计数为 0，表示没有虚拟地址映射到它
     assert(page_ref(p2) == 0);
+    // 确认新的页表项指向 p1，并没有用户权限 (PTE_U)
     assert((ptep = get_pte(boot_pgdir, PGSIZE, 0)) != NULL);
     assert(pte2page(*ptep) == p1);
     assert((*ptep & PTE_U) == 0);
 
+    // 删除虚拟地址 0x0 的映射，减少 p1 的引用计数
     page_remove(boot_pgdir, 0x0);
+    // 验证 p1 的引用计数为 1
     assert(page_ref(p1) == 1);
+    // 验证 p2 的引用计数为 0
     assert(page_ref(p2) == 0);
 
+    // 删除虚拟地址 PGSIZE 的映射，减少 p1 的引用计数
     page_remove(boot_pgdir, PGSIZE);
+    // 验证 p1 和 p2 的引用计数都为 0
     assert(page_ref(p1) == 0);
     assert(page_ref(p2) == 0);
 
+    // 确认页目录的第一页只有一个引用
     assert(page_ref(pde2page(boot_pgdir[0])) == 1);
 
-    pde_t *pd1=boot_pgdir,*pd0=page2kva(pde2page(boot_pgdir[0]));
+    // 定义页目录指针 pd1 和 pd0，分别指向 boot_pgdir 和二级页表
+    pde_t *pd1 = boot_pgdir, *pd0 = page2kva(pde2page(boot_pgdir[0]));
+    // 释放二级页表和页目录占用的物理页面
     free_page(pde2page(pd0[0]));
     free_page(pde2page(pd1[0]));
+    // 清除 boot_pgdir 的第一个页目录项，清理测试环境
     boot_pgdir[0] = 0;
 
-    assert(nr_free_store==nr_free_pages());
+    // 确保系统的空闲页数与测试前相等，检查内存泄漏
+    assert(nr_free_store == nr_free_pages());
 
+    // 输出测试成功的提示
     cprintf("check_pgdir() succeeded!\n");
 }
 
