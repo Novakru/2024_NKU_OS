@@ -25,7 +25,7 @@
  *              le2page (in memlayout.h), (in future labs: le2vma (in vmm.h), le2proc (in proc.h),etc.
  */
 
-list_entry_t pra_list_head, *curr_ptr;
+static list_entry_t pra_list_head, *curr_ptr;
 /*
  * (2) _fifo_init_mm: init pra_list_head and let  mm->sm_priv point to the addr of pra_list_head.
  *              Now, From the memory control struct mm_struct, we can access FIFO PRA
@@ -33,10 +33,16 @@ list_entry_t pra_list_head, *curr_ptr;
 static int
 _clock_init_mm(struct mm_struct *mm)
 {     
-     /*LAB3 EXERCISE 4: YOUR CODE*/ 
+     /*LAB3 EXERCISE 4: 2212285*/ 
      // 初始化pra_list_head为空链表
+     list_init(&pra_list_head);
+
      // 初始化当前指针curr_ptr指向pra_list_head，表示当前页面替换位置为链表头
+     curr_ptr=&pra_list_head;
+
      // 将mm的私有成员指针指向pra_list_head，用于后续的页面替换算法操作
+     mm->sm_priv=&pra_list_head;
+
      //cprintf(" mm->sm_priv %x in fifo_init_mm\n",mm->sm_priv);
      return 0;
 }
@@ -50,10 +56,14 @@ _clock_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, in
  
     assert(entry != NULL && curr_ptr != NULL);
     //record the page access situlation
-    /*LAB3 EXERCISE 4: YOUR CODE*/ 
+    /*LAB3 EXERCISE 4: 2212285*/ 
     // link the most recent arrival page at the back of the pra_list_head qeueue.
     // 将页面page插入到页面链表pra_list_head的末尾
+    list_add_before(curr_ptr,entry);
+
     // 将页面的visited标志置为1，表示该页面已被访问
+    page->visited=1;
+
     return 0;
 }
 /*
@@ -70,12 +80,27 @@ _clock_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tic
      //(1)  unlink the  earliest arrival page in front of pra_list_head qeueue
      //(2)  set the addr of addr of this page to ptr_page
     while (1) {
-        /*LAB3 EXERCISE 4: YOUR CODE*/ 
+        /*LAB3 EXERCISE 4: 2212285*/ 
         // 编写代码
         // 遍历页面链表pra_list_head，查找最早未被访问的页面
         // 获取当前页面对应的Page结构指针
         // 如果当前页面未被访问，则将该页面从页面链表中删除，并将该页面指针赋值给ptr_page作为换出页面
         // 如果当前页面已被访问，则将visited标志置为0，表示该页面已被重新访问
+        if(curr_ptr==head)
+            curr_ptr=curr_ptr->next;
+        struct Page *curr_ptr2page=le2page(curr_ptr,pra_page_link);
+        if(curr_ptr2page->visited){
+            curr_ptr2page->visited=0;
+            curr_ptr=curr_ptr->next;
+        }
+        else{
+            cprintf("curr_ptr %p\n",curr_ptr);//参照make grade的检测需求编写此处的输出文本
+            *ptr_page=curr_ptr2page;
+            curr_ptr=curr_ptr->next;
+            list_del(list_prev(curr_ptr));
+            break;
+        }
+
     }
     return 0;
 }

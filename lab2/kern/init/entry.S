@@ -53,3 +53,4 @@ boot_page_table_sv39:
     .zero 8 * 511
     # 设置最后一个页表项，PPN=0x80000，标志位 VRWXAD 均为 1
     .quad (0x80000 << 10) | 0xcf # VRWXAD
+    
