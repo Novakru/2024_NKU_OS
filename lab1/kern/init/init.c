@@ -25,8 +25,8 @@ int kern_init(void) {
     cprintf("%s\n\n", message);
 
     print_kerninfo();
-
-    // grade_backtrace();
+print_stackframe();
+    //grade_backtrace();
 
     idt_init();  // init interrupt descriptor table
 

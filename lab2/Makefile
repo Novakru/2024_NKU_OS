@@ -13,9 +13,6 @@ ifndef QEMU
 QEMU := qemu-system-riscv64
 endif
 
-ifndef SPIKE
-SPIKE := spike
-endif
 
 # eliminate default suffix rules
 .SUFFIXES: .c .S .h
@@ -29,13 +26,12 @@ HOSTCFLAGS	:= -Wall -O2
 
 GDB		:= $(GCCPREFIX)gdb
 
-CC		:= $(GCCPREFIX)gcc
-CFLAGS  := -mcmodel=medany -std=gnu99 -Wno-unused -Werror 
+CC		:= $(GCCPREFIX)gcc -g
+CFLAGS  := -mcmodel=medany -std=gnu99 -Wno-unused -Werror
 CFLAGS	+= -fno-builtin -Wall -O2 -nostdinc $(DEFS)
 CFLAGS	+= -fno-stack-protector -ffunction-sections -fdata-sections
-CFLAGS	+= -g
-CFLAGS2 = $(CFLAGS) -D ucore_test
 CTYPE	:= c S
+
 LD      := $(GCCPREFIX)ld
 LDFLAGS	:= -m elf64lriscv
 LDFLAGS	+= -nostdlib --gc-sections
@@ -66,7 +62,6 @@ listf_cc = $(call listf,$(1),$(CTYPE))
 
 # for cc
 add_files_cc = $(call add_files,$(1),$(CC),$(CFLAGS) $(3),$(2),$(4))
-add_files_cc2 = $(call add_files,$(1),$(CC),$(CFLAGS2) $(3),$(2),$(4))
 create_target_cc = $(call create_target,$(1),$(2),$(3),$(CC),$(CFLAGS))
 
 # for hostcc
@@ -85,7 +80,7 @@ match = $(shell echo $(2) | $(AWK) '{for(i=1;i<=NF;i++){if(match("$(1)","^"$$(i)
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # include kernel/user
 
-INCLUDE	+= libs/
+INCLUDE	+= libs 
 
 CFLAGS	+= $(addprefix -I,$(INCLUDE))
 
@@ -99,23 +94,21 @@ $(call add_files_cc,$(call listf_cc,$(LIBDIR)),libs,)
 KINCLUDE	+= kern/debug/ \
 			   kern/driver/ \
 			   kern/trap/ \
+			   kern/libs/\
 			   kern/mm/ \
 			   kern/arch/
 
 KSRCDIR		+= kern/init \
-			   kern/libs \
 			   kern/debug \
+			   kern/libs \
 			   kern/driver \
 			   kern/trap \
 			   kern/mm
 
 KCFLAGS		+= $(addprefix -I,$(KINCLUDE))
 
-ifeq ($(MAKECMDGOALS),test)
-$(call add_files_cc2,$(call listf_cc,$(KSRCDIR)),kernel,$(KCFLAGS))
-else
 $(call add_files_cc,$(call listf_cc,$(KSRCDIR)),kernel,$(KCFLAGS))
-endif
+
 KOBJS	= $(call read_packet,kernel libs)
 
 # create kernel target
@@ -161,21 +154,23 @@ endif
 TARGETS: $(TARGETS)
 
 .DEFAULT_GOAL := TARGETS
-.PHONY: qemu spike test
+
+.PHONY: qemu 
 qemu: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
+#	$(V)$(QEMU) -kernel $(UCOREIMG) -nographic
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
 		-bios default \
 		-device loader,file=$(UCOREIMG),addr=0x80200000
 
-debug: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
+debug:
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
 		-bios default \
-		-device loader,file=$(UCOREIMG),addr=0x80200000\
-		-s -S
+		-device loader,file=$(UCOREIMG),addr=0x80200000 \
+		-s -S 
 
 gdb:
 	riscv64-unknown-elf-gdb \
@@ -183,14 +178,16 @@ gdb:
     -ex 'set arch riscv:rv64' \
     -ex 'target remote localhost:1234'
 
-test: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
+
+test:
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
 		-bios default \
-		-device loader,file=$(UCOREIMG),addr=0x80200000
-spike: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
-	$(V)$(SPIKE) $(UCOREIMG)
+		-device loader,file=$(UCOREIMG),addr=0x80200000\
+		-s -S &
+	riscv64-unknown-elf-gdb \
+	-x init.gdb
 
 .PHONY: grade touch
 
