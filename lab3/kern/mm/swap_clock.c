@@ -15,6 +15,17 @@
  * poorly in practical application. Thus, it is rarely used in its unmodified form. This
  * algorithm experiences Belady's anomaly.
  *
+ * 增加物理内存帧的数量, 页面错误率反而增加。
+ * 这种现象表明，FIFO算法在某些情况下并不能有效地利用增加的内存资源，反而可能导致系统性能下降。
+ * Belady异常的例子：
+ * 假设有一个页面访问序列：1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5。
+ * 
+ * 当使用3个内存帧时，FIFO算法可能会导致较高的页面错误率。
+ * 当增加到4个内存帧时，页面错误率反而可能增加。
+ * 
+ * 这种现象在其他一些页面置换算法（如LRU，Least Recently Used）中不会发生，因为这些算法能够更好地适应内存帧数量的增加。
+ * Belady异常的存在使得FIFO算法在实际应用中受到限制，通常需要结合其他机制或使用更复杂的算法来避免这种异常。
+ * 
  * Details of FIFO PRA
  * (1) Prepare: In order to implement FIFO PRA, we should manage all swappable pages, so we can
  *              link these pages into pra_list_head according the time order. At first you should
@@ -71,6 +82,7 @@ _clock_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tic
 {
 	list_entry_t *head=(list_entry_t*) mm->sm_priv;
 	assert(head != NULL);
+	// 多进程需要，需要保证换出的内存不在时间片内
 	assert(in_tick==0);
      /* Select the victim */
      //(1)  unlink the  earliest arrival page in front of pra_list_head qeueue

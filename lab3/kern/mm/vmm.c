@@ -133,14 +133,14 @@ insert_vma_struct(struct mm_struct *mm, struct vma_struct *vma) {
     list_entry_t *list = &(mm->mmap_list);
     list_entry_t *le_prev = list, *le_next;
 
-        list_entry_t *le = list;
-        while ((le = list_next(le)) != list) {
-            struct vma_struct *mmap_prev = le2vma(le, list_link);
-            if (mmap_prev->vm_start > vma->vm_start) {
-                break;
-            }
-            le_prev = le;
-        }
+	list_entry_t *le = list;
+	while ((le = list_next(le)) != list) {
+		struct vma_struct *mmap_prev = le2vma(le, list_link);
+		if (mmap_prev->vm_start > vma->vm_start) {
+			break;
+		}
+		le_prev = le;
+	}
 
     le_next = list_next(le_prev);
 
