@@ -10,7 +10,7 @@
    Please see Page 196~198, Section 8.2 of Yan Wei Min's chinese book "Data Structure -- C programming language"
 */
 // LAB2 EXERCISE 1: YOUR CODE
-// you should rewrite functions: default_init,default_init_memmap,default_alloc_pages, default_free_pages.
+// you should rewrite functions: default_init,default_init_memmap,default_alloc_pages, default_free_pages. 
 /*
  * Details of FFMA
  * (1) Prepare: In order to implement the First-Fit Mem Alloc (FFMA), we should manage the free mem block use some list.
