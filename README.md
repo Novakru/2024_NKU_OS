@@ -11,3 +11,6 @@ https://nankai.feishu.cn/wiki/N3y4wfLGCiQnDwkpWRocSKlPnQl?from=from_copylink
 |-------------|----------------|-------------------------|------------------------------------|--------------------------------|
 | Lab0 + Lab1 | 全员完成       | 全员完成               |  jjh.wzm.szm三个分支                               | -                              |
 | Lab2        | 全员完成       | Buddy的邻接链表实现 + slub  | 1.buddy在jjh分支   2.best-fit、first-fit在jjh.wzm.szm三个分支  3.slub在szm分支  | SLUB简易实现（wzm + szm）、buddy简易实现(jjh) |
+| Lab3        | 全员完成       | 全员完成  | jjh.wzm.szm三个分支  | - |
+| Lab4        | 全员完成       | 全员完成  | jjh.wzm.szm三个分支  | - |
+| Lab5        | 全员完成       | copy on write  | jjh.wzm.szm三个分支  | - |
