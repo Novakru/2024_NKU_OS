@@ -201,7 +201,7 @@ dup_mmap(struct mm_struct *to, struct mm_struct *from) {
 
         insert_vma_struct(to, nvma);
 
-        bool share = 0;
+        bool share = 1;
         if (copy_range(to->pgdir, from->pgdir, vma->vm_start, vma->vm_end, share) != 0) {
             return -E_NO_MEM;
         }
@@ -434,8 +434,14 @@ do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr) {
             cprintf("pgdir_alloc_page in do_pgfault failed\n");
             goto failed;
         }
-    } else {
-        /*LAB3 EXERCISE 3: YOUR CODE
+    } else if ((*ptep & PTE_V) & (error_code & 3 == 3)) {
+        struct Page * page = pte2page(*ptep);
+        struct Page * npage = pgdir_alloc_page(mm-> pgdir, addr, perm);
+        uintptr_t src_kvaddr = page2kva(page);
+        uintptr_t dst_kvaddr = page2kva(npage);
+        memcpy(dst_kvaddr, src_kvaddr, PGSIZE);
+    }else{
+        /*LAB3 EXERCISE 3: 2213624
         * 请你根据以下信息提示，补充函数
         * 现在我们认为pte是一个交换条目，那我们应该从磁盘加载数据并放到带有phy addr的页面，
         * 并将phy addr与逻辑addr映射，触发交换管理器记录该页面的访问情况
@@ -458,6 +464,10 @@ do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr) {
             //map of phy addr <--->
             //logical addr
             //(3) make the page swappable.
+            swap_in(mm, addr, &page); 
+            page_insert(mm->pgdir, page, addr, perm); //更新页表，插入新的页表项
+            swap_map_swappable(mm, addr, page, 1);
+
             page->pra_vaddr = addr;
         } else {
             cprintf("no swap_init_ok but ptep is %x, failed\n", *ptep);

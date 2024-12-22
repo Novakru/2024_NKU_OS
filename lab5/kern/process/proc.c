@@ -87,7 +87,7 @@ static struct proc_struct *
 alloc_proc(void) {
     struct proc_struct *proc = kmalloc(sizeof(struct proc_struct));
     if (proc != NULL) {
-    //LAB4:EXERCISE1 YOUR CODE
+    //LAB4:EXERCISE1  2213624
     /*
      * below fields in proc_struct need to be initialized
      *       enum proc_state state;                      // Process state
@@ -104,12 +104,31 @@ alloc_proc(void) {
      *       char name[PROC_NAME_LEN + 1];               // Process name
      */
 
-     //LAB5 YOUR CODE : (update LAB4 steps)
+     //LAB5 2213624 : (update LAB4 steps)
      /*
      * below fields(add in LAB5) in proc_struct need to be initialized  
      *       uint32_t wait_state;                        // waiting state
      *       struct proc_struct *cptr, *yptr, *optr;     // relations between processes
      */
+        proc->state = PROC_UNINIT;  // 初始化进程状态为“未初始化”，表示该进程还未做好准备工作
+        proc->pid = -1;  // 设置进程ID为-1，表示进程ID尚未分配
+        proc->cr3 = boot_cr3;  // 设置进程的页目录基地址（CR3寄存器）为启动时的CR3值
+        proc->runs = 0;  // 初始化进程运行次数为0，表示该进程尚未执行
+        proc->kstack = 0;  // 设置进程的内核栈地址为0，表示内核栈尚未分配
+        proc->need_resched = 0;  // 设置进程不需要重新调度，默认不需要
+        proc->parent = NULL;  // 设置进程的父进程指针为空，表示该进程没有父进程
+        proc->mm = NULL;  // 设置进程的内存管理信息为空，表示尚未初始化内存管理
+        memset(&(proc->context), 0, sizeof(struct context));  // 清空进程的上下文数据，确保没有遗留信息
+        proc->tf = NULL;  // 设置进程的陷阱帧为空，表示没有异常或中断发生
+        proc->flags = 0;  // 初始化进程标志为0，表示没有特殊标志
+        memset(proc->name, 0, PROC_NAME_LEN);  // 清空进程名称，确保名称字段为空
+
+        proc->wait_state = 0;
+        proc->cptr = NULL; // 初始化 cptr 为 NULL，表示没有子进程
+        proc->yptr = NULL; // 初始化 yptr 为 NULL，表示没有“年轻”兄弟进程
+        proc->optr = NULL; // 初始化 optr 为 NULL，表示没有“老”兄弟进程
+
+
     }
     return proc;
 }
@@ -197,7 +216,7 @@ get_pid(void) {
 void
 proc_run(struct proc_struct *proc) {
     if (proc != current) {
-        // LAB4:EXERCISE3 YOUR CODE
+        // LAB4:EXERCISE3 2213624
         /*
         * Some Useful MACROs, Functions and DEFINEs, you can use them in below implementation.
         * MACROs or Functions:
@@ -206,6 +225,25 @@ proc_run(struct proc_struct *proc) {
         *   lcr3():                   Modify the value of CR3 register
         *   switch_to():              Context switching between two processes
         */
+        // 定义用于保存中断状态的变量
+        bool intr_flag;
+        // 记录当前进程和即将运行的进程
+        struct proc_struct *prev = current, *next = proc;
+
+        // 禁用中断以保护上下文切换过程
+        local_intr_save(intr_flag);
+        {
+            // 将当前进程更新为proc
+            current = proc;
+            // 加载新进程的页目录表到CR3寄存器并切换地址空间
+            lcr3(next->cr3);
+            // 执行上下文切换，切换到新进程
+            switch_to(&(prev->context), &(next->context));
+        }
+        // 恢复之前的中断状态
+        local_intr_restore(intr_flag);
+
+
 
     }
 }
@@ -369,7 +407,7 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
         goto fork_out;
     }
     ret = -E_NO_MEM;
-    //LAB4:EXERCISE2 YOUR CODE
+    //LAB4:EXERCISE2 2213624
     /*
      * Some Useful MACROs, Functions and DEFINEs, you can use them in below implementation.
      * MACROs or Functions:
@@ -395,7 +433,7 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     //    6. call wakeup_proc to make the new child process RUNNABLE
     //    7. set ret vaule using child proc's pid
 
-    //LAB5 YOUR CODE : (update LAB4 steps)
+    //LAB5 2213624 : (update LAB4 steps)
     //TIPS: you should modify your written code in lab4(step1 and step5), not add more code.
    /* Some Functions
     *    set_links:  set the relation links of process.  ALSO SEE: remove_links:  lean the relation links of process 
@@ -403,7 +441,41 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     *    update step 1: set child proc's parent to current process, make sure current process's wait_state is 0
     *    update step 5: insert proc_struct into hash_list && proc_list, set the relation links of process
     */
- 
+
+
+
+
+    //    1. call alloc_proc to allocate a proc_struct
+    if ((proc = alloc_proc()) == NULL)
+        goto fork_out;
+        current->wait_state=0;
+    //    2. call setup_kstack to allocate a kernel stack for child process
+    proc->parent = current; 
+    if (setup_kstack(proc))
+        goto bad_fork_cleanup_kstack;
+    //    3. call copy_mm to dup OR share mm according clone_flag
+    if (copy_mm(clone_flags, proc))
+        goto bad_fork_cleanup_proc;
+    //    4. call copy_thread to setup tf & context in proc_struct
+    copy_thread(proc, stack, tf);
+    //    5. insert proc_struct into hash_list && proc_list
+    bool intr_flag;
+    local_intr_save(intr_flag); // 禁用中断
+    {
+        proc->pid = get_pid();                    // 为子进程分配一个唯一的进程ID
+        hash_proc(proc);                          // 将新进程添加到哈希表中
+        //list_add(&proc_list, &(proc->list_link)); // 将新进程添加到进程列表中
+        set_links(proc);
+    }
+    local_intr_restore(intr_flag); // 恢复中断
+    //    6. call wakeup_proc to make the new child process RUNNABLE
+    wakeup_proc(proc);
+    //    7. set ret vaule using child proc's pid
+    ret = proc->pid;
+
+    
+
+
 fork_out:
     return ret;
 
@@ -595,7 +667,7 @@ load_icode(unsigned char *binary, size_t size) {
     // Keep sstatus
     uintptr_t sstatus = tf->status;
     memset(tf, 0, sizeof(struct trapframe));
-    /* LAB5:EXERCISE1 YOUR CODE
+    /* LAB5:EXERCISE1 2213624
      * should set tf->gpr.sp, tf->epc, tf->status
      * NOTICE: If we set trapframe correctly, then the user level process can return to USER MODE from kernel. So
      *          tf->gpr.sp should be user stack top (the value of sp)
@@ -603,6 +675,11 @@ load_icode(unsigned char *binary, size_t size) {
      *          tf->status should be appropriate for user program (the value of sstatus)
      *          hint: check meaning of SPP, SPIE in SSTATUS, use them by SSTATUS_SPP, SSTATUS_SPIE(defined in risv.h)
      */
+    tf->gpr.sp = USTACKTOP;
+    tf->epc = elf->e_entry;
+    // Set SPP to 0 so that we return to user mode
+    // Set SPIE to 1 so that we can handle interrupts
+    tf->status = (sstatus & ~SSTATUS_SPP) | SSTATUS_SPIE;
 
 
     ret = 0;
